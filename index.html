@@ -8,12 +8,13 @@
     Файл: pvz/index.html
     Назначение: Сайт сотрудника ПВЗ
     Автор: Система Wildberries Clone
-    Версия: 3.0
+    Версия: 4.0
     Дата: 2025-04-05
     Требования:
       - Вход по паролю 0506
-      - Обязательное сканирование QR клиента перед выдачей и браком
-      - Отображение товара, изображения, места хранения
+      - Сканирование QR-кода клиента
+      - Обязательное сканирование QR-кода товара при выдаче и браке
+      - Отображение информации о заказе
       - Голосовые подсказки
       - Генерация QR на товар в стиле WB
       - Поддержка проводного сканера
@@ -86,9 +87,15 @@
     </div>
   </div>
   <div class="scan-area">
-    <h3>🔍 Начните обслуживание</h3>
-    <p>Отсканируйте QR-код клиента для выдачи или брака</p>
-    <input type="text" class="scan-input" id="scan-input" placeholder="Сканируйте QR-код..." oninput="handleScan()" autocomplete="off" />
+    <h3>🔍 Сканируйте QR-код клиента</h3>
+    <p>Отсканируйте QR из личного кабинета покупателя</p>
+    <input type="text" class="scan-input" id="client-scan-input" placeholder="Сканируйте QR-код клиента..." oninput="handleClientScan()" autocomplete="off" />
+  </div>
+  <!-- ДОБАВЛЕНО: Поле для сканирования товара -->
+  <div class="scan-area" id="product-scan-area" style="display:none; margin-top:20px;">
+    <h3>📦 Сканируйте QR-код на товаре</h3>
+    <p>Отсканируйте QR, напечатанный при приёме заказа</p>
+    <input type="text" class="scan-input" id="product-scan-input" placeholder="Сканируйте QR с упаковки..." oninput="handleProductScan()" autocomplete="off" />
   </div>
   <div id="order-info" class="order-info" style="display:none;"></div>
   <div class="actions" id="action-buttons" style="display:none;">
@@ -157,13 +164,16 @@
   const CASHIER_PASSWORD = "0506";
   let currentOrderKey = null;
   let currentOrder = null;
+  // === ДОБАВЛЕНО: Переменные для двойного сканирования ===
+  let clientOrderId = null;
+  let productOrderId = null;
 
   // === Вход ===
   function login() {
     if (document.getElementById("password-input").value === CASHIER_PASSWORD) {
       document.getElementById("login-screen").style.display = "none";
       document.getElementById("main-screen").style.display = "flex";
-      document.getElementById("scan-input").focus();
+      document.getElementById("client-scan-input").focus();
       logAction("LOGIN", { role: "cashier" });
     } else {
       alert("Неверный пароль! Попробуйте снова.");
@@ -172,6 +182,8 @@
 
   function logout() {
     currentOrderKey = null;
+    clientOrderId = null;
+    productOrderId = null;
     document.getElementById("main-screen").style.display = "none";
     document.getElementById("new-orders-screen").style.display = "none";
     document.getElementById("receive-screen").style.display = "none";
@@ -184,7 +196,11 @@
   function resetUI() {
     document.getElementById("order-info").style.display = "none";
     document.getElementById("action-buttons").style.display = "none";
-    document.getElementById("scan-input").value = "";
+    document.getElementById("client-scan-input").value = "";
+    document.getElementById("product-scan-input").value = "";
+    document.getElementById("product-scan-area").style.display = "none";
+    clientOrderId = null;
+    productOrderId = null;
   }
 
   function backToMain() {
@@ -232,7 +248,7 @@
             <p><strong>Сумма:</strong> ${order.total} ₽</p>
             <p><strong>Оплата:</strong> ${order.paymentMethod === 'cash' ? 'При получении' : 'Онлайн'}</p>
             <p><strong>Товаров:</strong> ${order.items.length}</p>
-            <button class="btn-success" onclick="prepareReceive('${child.key}', ${JSON.stringify(order).replace(/'/g, "\\'")})">Принять заказ</button>
+            <button class="btn-success" onclick="prepareReceive('${child.key}', ${JSON.stringify(order)})">Принять заказ</button>
           `;
           list.appendChild(div);
         });
@@ -264,7 +280,7 @@
       `).join('')}</div>
     `;
 
-    // Генерация QR-кода
+    // Генерация QR-кода на товар
     const qrData = JSON.stringify({
       orderId: orderKey,
       pvz: "PVZ_BALASHIHA_32D",
@@ -320,9 +336,9 @@
     });
   }
 
-  // === Обработка сканирования ===
-  function handleScan() {
-    const input = document.getElementById("scan-input");
+  // === ДОБАВЛЕНО: Обработка сканирования клиента ===
+  function handleClientScan() {
+    const input = document.getElementById("client-scan-input");
     let value = input.value.trim();
 
     if (value.length < 10) return;
@@ -349,6 +365,31 @@
     }, 100);
   }
 
+  // === ДОБАВЛЕНО: Обработка сканирования товара ===
+  function handleProductScan() {
+    const input = document.getElementById("product-scan-input");
+    let value = input.value.trim();
+
+    if (value.length < 10) return;
+
+    try {
+      const data = JSON.parse(value);
+      if (data.orderId) {
+        productOrderId = data.orderId;
+        if (productOrderId === clientOrderId) {
+          document.getElementById("action-buttons").style.display = "block";
+          alert("✅ Товар подтверждён. Готов к выдаче.");
+        } else {
+          alert("❌ Товар не соответствует заказу!");
+          productOrderId = null;
+        }
+        input.value = "";
+      }
+    } catch (e) {
+      // Игнорируем ошибки парсинга
+    }
+  }
+
   function loadOrderForIssue(orderId) {
     db.ref('orders/' + orderId).once('value').then(snapshot => {
       const order = snapshot.val();
@@ -364,6 +405,7 @@
         return;
       }
 
+      clientOrderId = orderId;
       currentOrderKey = orderId;
       currentOrder = order;
       const info = document.getElementById("order-info");
@@ -381,19 +423,24 @@
         <p><strong>Статус:</strong> <span class="status-ready">Готов к выдаче</span></p>
       `;
       info.style.display = "block";
-      document.getElementById("action-buttons").style.display = "block";
+      // Показываем поле для сканирования товара
+      document.getElementById("product-scan-area").style.display = "block";
+      document.getElementById("product-scan-input").focus();
     });
   }
 
   // === Выдача и брак ===
   function confirmIssue() {
-    if (!currentOrderKey) return;
-    db.ref('orders/' + currentOrderKey).update({
+    if (!clientOrderId || !productOrderId || clientOrderId !== productOrderId) {
+      alert("Сначала отсканируйте QR-код клиента и QR-код на товаре!");
+      return;
+    }
+    db.ref('orders/' + clientOrderId).update({
       status: "issued",
       issuedAt: firebase.database.ServerValue.TIMESTAMP
     }).then(() => {
       if ('speechSynthesis' in window) {
-        const msg = `Заказ номер ${currentOrderKey.slice(-6)} выдан. Оплата ${currentOrder.paymentMethod}. Пожалуйста, проверьте товар под камерами.`;
+        const msg = `Заказ номер ${clientOrderId.slice(-6)} выдан. Оплата ${currentOrder.paymentMethod}. Пожалуйста, проверьте товар под камерами.`;
         const utterance = new SpeechSynthesisUtterance(msg);
         utterance.lang = 'ru-RU';
         speechSynthesis.speak(utterance);
@@ -404,9 +451,12 @@
   }
 
   function markAsDefect() {
-    if (!currentOrderKey) return;
+    if (!clientOrderId || !productOrderId || clientOrderId !== productOrderId) {
+      alert("Сначала отсканируйте QR-код клиента и QR-код на товаре!");
+      return;
+    }
     if (!confirm("Вы уверены, что товар бракованный?")) return;
-    db.ref('orders/' + currentOrderKey).update({
+    db.ref('orders/' + clientOrderId).update({
       status: "defect",
       defectAt: firebase.database.ServerValue.TIMESTAMP
     }).then(() => {
@@ -495,29 +545,16 @@
     alert(`Ошибка: ${error.message || error}`);
   }
 
-  // === Тестовые функции ===
-  function runTests() {
-    console.log("Запуск тестов ПВЗ...");
-    console.assert(validateOrderId("abc123") === false, "Тест ID 1");
-    console.assert(validateOrderId("longer_than_20_characters_id") === true, "Тест ID 2");
-    console.log("Тесты ПВЗ завершены.");
-  }
-
   // === Инициализация ===
   window.onload = () => {
     document.getElementById("login-screen").style.display = "flex";
   };
 
-  // === Дополнительные утилиты ===
-  function getTimestamp() {
-    return firebase.database.ServerValue.TIMESTAMP;
-  }
-
   if (!window.speechSynthesis) {
     console.warn("SpeechSynthesis не поддерживается");
   }
 
-  console.log("Система ПВЗ версии 3.0 запущена.");
+  console.log("Система ПВЗ версии 4.0 запущена.");
 </script>
 
 </body>
