@@ -4,14 +4,32 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Wildberries — ПВЗ</title>
+  <!-- 
+    Файл: pvz/index.html
+    Назначение: Сайт сотрудника ПВЗ
+    Автор: Система Wildberries Clone
+    Версия: 1.0
+    Дата: 2025-04-05
+    Требования:
+      - Вход по паролю 0506
+      - Сканирование QR-кода клиента
+      - Обязательное сканирование перед выдачей и браком
+      - Отображение информации о заказе
+      - Голосовые подсказки
+      - Работа с Firebase Realtime Database
+  -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
+    /* 
+      Стили для страницы ПВЗ
+      Фон: светло-фиолетовый градиент
+      Акценты: фиолетовый
+    */
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     body { background: linear-gradient(135deg, #f0f0ff 0%, #e0e0ff 100%); color: #333; min-height: 100vh; }
     .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; padding: 20px; overflow-y: auto; }
-    #login { display: flex; background: linear-gradient(135deg, #6c5ce7 0%, #5d4de0 100%); color: white; justify-content: center; align-items: center; flex-direction: column; text-align: center; }
+    #login-screen { display: flex; background: linear-gradient(135deg, #6c5ce7 0%, #5d4de0 100%); color: white; justify-content: center; align-items: center; flex-direction: column; text-align: center; }
     .logo { font-size: 36px; font-weight: bold; margin-bottom: 25px; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
     input, button { padding: 14px; margin: 10px 0; font-size: 16px; border-radius: 8px; border: 1px solid #ccc; width: 100%; max-width: 400px; }
     input { background: white; color: #333; }
@@ -26,20 +44,23 @@
     .scan-input { width: 100%; padding: 14px; font-size: 18px; text-align: center; border: 2px solid #6c5ce7; border-radius: 8px; }
     .order-info { background: white; padding: 20px; border-radius: 10px; margin: 20px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
     .actions { margin: 20px 0; }
+    .status-ready { color: #2ecc71; font-weight: bold; }
+    .status-defect { color: #e74c3c; font-weight: bold; }
   </style>
 </head>
 <body>
 
-<!-- Вход -->
-<div id="login" class="screen">
+<!-- Экран входа -->
+<div id="login-screen" class="screen">
   <div class="logo">ПВЗ Wildberries</div>
   <h2>Вход для сотрудников</h2>
-  <input type="password" id="password" placeholder="Пароль: 0506" maxlength="4" autofocus />
+  <p>Введите пароль кассира для доступа к системе</p>
+  <input type="password" id="password-input" placeholder="Пароль: 0506" maxlength="4" autofocus />
   <button onclick="login()">Войти</button>
 </div>
 
 <!-- Главный экран -->
-<div id="main" class="screen">
+<div id="main-screen" class="screen">
   <div class="header">
     <h2>📦 Пункт выдачи — Балашиха</h2>
     <button onclick="logout()">Выход</button>
@@ -57,38 +78,46 @@
 </div>
 
 <script>
+  // === Инициализация Firebase ===
+  // Используем вашу базу данных
   const firebaseConfig = {
     databaseURL: "https://renessans-bank-3df94-default-rtdb.europe-west1.firebasedatabase.app/"
   };
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
+
+  // === Константы ===
   const CASHIER_PASSWORD = "0506";
   let currentOrderKey = null;
 
+  // === Функция входа ===
   function login() {
-    if (document.getElementById("password").value === CASHIER_PASSWORD) {
-      document.getElementById("login").style.display = "none";
-      document.getElementById("main").style.display = "flex";
+    if (document.getElementById("password-input").value === CASHIER_PASSWORD) {
+      document.getElementById("login-screen").style.display = "none";
+      document.getElementById("main-screen").style.display = "flex";
       document.getElementById("scan-input").focus();
     } else {
-      alert("Неверный пароль!");
+      alert("Неверный пароль! Попробуйте снова.");
     }
   }
 
+  // === Выход из системы ===
   function logout() {
     currentOrderKey = null;
-    document.getElementById("main").style.display = "none";
-    document.getElementById("login").style.display = "flex";
-    document.getElementById("password").value = "";
+    document.getElementById("main-screen").style.display = "none";
+    document.getElementById("login-screen").style.display = "flex";
+    document.getElementById("password-input").value = "";
     resetUI();
   }
 
+  // === Сброс интерфейса ===
   function resetUI() {
     document.getElementById("order-info").style.display = "none";
     document.getElementById("action-buttons").style.display = "none";
     document.getElementById("scan-input").value = "";
   }
 
+  // === Обработка сканирования ===
   function handleScan() {
     const input = document.getElementById("scan-input");
     let value = input.value.trim();
@@ -113,7 +142,7 @@
       }
     }
 
-    // Если ничего не подошло — сброс
+    // Если ничего не подошло — сброс через 100 мс
     setTimeout(() => {
       if (input.value === value) {
         input.value = "";
@@ -121,6 +150,7 @@
     }, 100);
   }
 
+  // === Загрузка заказа ===
   function loadOrder(orderId) {
     db.ref('orders/' + orderId).once('value').then(snapshot => {
       const order = snapshot.val();
@@ -145,19 +175,25 @@
         <p><strong>Сумма:</strong> ${order.total} ₽</p>
         <p><strong>Оплата:</strong> ${order.paymentMethod === 'cash' ? 'При получении' : 'Онлайн'}</p>
         <p><strong>Место хранения:</strong> ${order.location || 'Не указано'}</p>
-        <p><strong>Статус:</strong> Готов к выдаче</p>
+        <p><strong>Статус:</strong> <span class="status-ready">Готов к выдаче</span></p>
       `;
       info.style.display = "block";
       document.getElementById("action-buttons").style.display = "block";
     });
   }
 
+  // === Выдача товара ===
   function confirmIssue() {
-    if (!currentOrderKey) return;
+    if (!currentOrderKey) {
+      alert("Не выбран заказ!");
+      return;
+    }
+
     db.ref('orders/' + currentOrderKey).update({
       status: "issued",
       issuedAt: firebase.database.ServerValue.TIMESTAMP
     }).then(() => {
+      // Голосовое сообщение
       if ('speechSynthesis' in window) {
         const msg = `Заказ выдан. Оплата ${currentOrderKey}. Пожалуйста, проверьте товар под камерами.`;
         const utterance = new SpeechSynthesisUtterance(msg);
@@ -166,25 +202,70 @@
       }
       alert("✅ Товар успешно выдан!");
       resetUI();
+    }).catch(err => {
+      alert("Ошибка при выдаче: " + err.message);
     });
   }
 
+  // === Пометка брака ===
   function markAsDefect() {
-    if (!currentOrderKey) return;
+    if (!currentOrderKey) {
+      alert("Не выбран заказ!");
+      return;
+    }
+
     if (!confirm("Вы уверены, что товар бракованный?")) return;
+
     db.ref('orders/' + currentOrderKey).update({
       status: "defect",
       defectAt: firebase.database.ServerValue.TIMESTAMP
     }).then(() => {
       alert("⚠️ Товар помечен как брак!");
       resetUI();
+    }).catch(err => {
+      alert("Ошибка при пометке брака: " + err.message);
     });
   }
 
-  // Фокус на поле ввода при загрузке
+  // === Фокус на поле ввода при загрузке ===
   window.onload = () => {
-    document.getElementById("login").style.display = "flex";
+    document.getElementById("login-screen").style.display = "flex";
   };
+
+  // === Дополнительные функции для расширения ===
+  function logAction(action, orderId) {
+    console.log(`[PВЗ] ${action} для заказа ${orderId} в ${new Date().toISOString()}`);
+  }
+
+  function validateOrderData(order) {
+    return order && order.userId && order.items && order.total;
+  }
+
+  function formatPhoneNumber(phone) {
+    return phone.replace(/(\d{1})(\d{3})(\d{3})(\d{2})(\d{2})/, '+$1 ($2) $3-$4-$5');
+  }
+
+  function getPaymentLabel(method) {
+    return method === 'cash' ? 'При получении' : 'Онлайн';
+  }
+
+  function showLoading(message = "Загрузка...") {
+    document.getElementById("order-info").innerHTML = `<p>${message}</p>`;
+    document.getElementById("order-info").style.display = "block";
+  }
+
+  function hideLoading() {
+    document.getElementById("order-info").style.display = "none";
+  }
+
+  // === Обработка ошибок ===
+  function handleError(error, context) {
+    console.error(`[Ошибка ${context}]:`, error);
+    alert(`Произошла ошибка: ${error.message || error}`);
+  }
+
+  // === Инициализация ===
+  console.log("Система ПВЗ запущена. Ожидание входа сотрудника.");
 </script>
 
 </body>
