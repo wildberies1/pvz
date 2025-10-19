@@ -7,46 +7,34 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     body { background: linear-gradient(135deg, #f0f0ff 0%, #e0e0ff 100%); color: #333; min-height: 100vh; }
     .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; padding: 20px; overflow-y: auto; }
     #login { display: flex; background: linear-gradient(135deg, #6c5ce7 0%, #5d4de0 100%); color: white; justify-content: center; align-items: center; flex-direction: column; text-align: center; }
     .logo { font-size: 36px; font-weight: bold; margin-bottom: 25px; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-    input, button, select { padding: 14px; margin: 10px 0; font-size: 16px; border-radius: 8px; border: 1px solid #ccc; width: 100%; max-width: 400px; }
+    input, button { padding: 14px; margin: 10px 0; font-size: 16px; border-radius: 8px; border: 1px solid #ccc; width: 100%; max-width: 400px; }
     input { background: white; color: #333; }
-    button { cursor: pointer; background: #6c5ce7; color: white; border: none; font-weight: bold; transition: all 0.2s ease; }
+    button { cursor: pointer; background: #6c5ce7; color: white; border: none; font-weight: bold; }
     button:hover { background: #5d4de0; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
     .btn-danger { background: #e74c3c; }
-    .btn-danger:hover { background: #c0392b; }
     .btn-success { background: #2ecc71; }
-    .btn-success:hover { background: #27ae60; }
-    .btn-warning { background: #f39c12; }
-    .btn-warning:hover { background: #d35400; }
-    .order-card { background: white; border-radius: 12px; padding: 18px; margin: 15px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-left: 4px solid #6c5ce7; }
+    .order-card { background: white; border-radius: 12px; padding: 18px; margin: 15px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #eee; }
     .header h2 { color: #6c5ce7; }
-    .qr-container { background: white; padding: 20px; border-radius: 12px; text-align: center; margin: 20px auto; max-width: 300px; box-shadow: 0 6px 16px rgba(0,0,0,0.15); }
-    .qr-header { color: #6c5ce7; font-size: 24px; font-weight: bold; margin-bottom: 10px; }
-    .qr-barcode { margin: 15px 0; font-family: monospace; font-size: 16px; }
-    .qr-numbers { font-family: monospace; font-size: 18px; margin-top: 5px; }
-    .review-card { background: white; border-radius: 10px; padding: 15px; margin: 10px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-    .rating { color: #f39c12; font-size: 20px; margin: 8px 0; }
-    .location-input { width: 100%; padding: 12px; font-size: 16px; border: 2px solid #6c5ce7; border-radius: 8px; margin: 10px 0; }
-    .item-preview { display: flex; align-items: center; margin: 10px 0; }
-    .item-image { width: 80px; height: 80px; object-fit: cover; margin-right: 10px; }
-    .item-details { flex: 1; }
+    .scan-area { background: white; padding: 25px; border-radius: 12px; text-align: center; margin: 20px 0; box-shadow: 0 6px 16px rgba(0,0,0,0.15); }
+    .scan-input { width: 100%; padding: 14px; font-size: 18px; text-align: center; border: 2px solid #6c5ce7; border-radius: 8px; }
+    .order-info { background: white; padding: 20px; border-radius: 10px; margin: 20px 0; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .actions { margin: 20px 0; }
   </style>
 </head>
 <body>
 
-<!-- Экран входа -->
+<!-- Вход -->
 <div id="login" class="screen">
   <div class="logo">ПВЗ Wildberries</div>
   <h2>Вход для сотрудников</h2>
-  <p>Введите пароль кассира</p>
-  <input type="password" id="password" placeholder="Пароль" maxlength="4" autofocus />
+  <input type="password" id="password" placeholder="Пароль: 0506" maxlength="4" autofocus />
   <button onclick="login()">Войти</button>
 </div>
 
@@ -54,416 +42,149 @@
 <div id="main" class="screen">
   <div class="header">
     <h2>📦 Пункт выдачи — Балашиха</h2>
-    <div>
-      <button onclick="showNewOrders()">Новые заказы</button>
-      <button onclick="showReviews()">Отзывы</button>
-      <button onclick="logout()">Выход</button>
-    </div>
+    <button onclick="logout()">Выход</button>
   </div>
-  <div id="main-content">
-    <h3>Добро пожаловать!</h3>
-    <p>Выберите раздел в меню для начала работы.</p>
-    <div style="margin-top: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
-      <div class="order-card">
-        <h3>📥 Новые заказы</h3>
-        <p>Принимайте поступившие заказы</p>
-        <button onclick="showNewOrders()">Открыть</button>
-      </div>
-      <div class="order-card">
-        <h3>⭐ Отзывы</h3>
-        <p>Просмотрите отзывы клиентов</p>
-        <button onclick="showReviews()">Открыть</button>
-      </div>
-    </div>
+  <div class="scan-area">
+    <h3>🔍 Начните обслуживание</h3>
+    <p>Отсканируйте QR-код клиента для выдачи или брака</p>
+    <input type="text" class="scan-input" id="scan-input" placeholder="Сканируйте QR-код..." oninput="handleScan()" autocomplete="off" />
   </div>
-</div>
-
-<!-- Новые заказы -->
-<div id="new-orders" class="screen">
-  <div class="header">
-    <h2>🆕 Новые заказы</h2>
-    <button onclick="backToMain()">← Назад</button>
+  <div id="order-info" class="order-info" style="display:none;"></div>
+  <div class="actions" id="action-buttons" style="display:none;">
+    <button class="btn-success" onclick="confirmIssue()">Выдать товар</button>
+    <button class="btn-danger" onclick="markAsDefect()">Брак</button>
   </div>
-  <div id="new-orders-list"></div>
-</div>
-
-<!-- Экран приёма заказа -->
-<div id="receive" class="screen">
-  <div class="header">
-    <h2>🖨️ Приём заказа</h2>
-    <button onclick="backToNewOrders()">← Назад</button>
-  </div>
-  <div id="order-details"></div>
-  <div class="qr-container" id="qr-container" style="display:none;">
-    <div class="qr-header">WB</div>
-    <div id="qr-code"></div>
-    <div class="qr-barcode" id="barcode-number"></div>
-    <div class="qr-numbers" id="qr-numbers"></div>
-  </div>
-  <input type="text" class="location-input" id="location-input" placeholder="Укажите место хранения (например: Полка 12)" />
-  <button class="btn-success" onclick="confirmReceive()">Подтвердить приём</button>
-  <button class="btn-warning" onclick="markAsDefect()">Брак</button>
-</div>
-
-<!-- Отзывы -->
-<div id="reviews" class="screen">
-  <div class="header">
-    <h2>⭐ Отзывы клиентов</h2>
-    <button onclick="backToMain()">← Назад</button>
-  </div>
-  <div id="reviews-list"></div>
-</div>
-
-<!-- Выдача товара -->
-<div id="issue" class="screen">
-  <div class="header">
-    <h2>🎁 Выдача товара</h2>
-    <button onclick="backToMain()">← Назад</button>
-  </div>
-  <div id="issue-details"></div>
-  <div id="scan-input" style="margin: 20px 0;">
-    <input type="text" id="scan-input" placeholder="Сканируйте QR-код" oninput="handleScan()" style="width: 100%; padding: 12px; font-size: 16px;" />
-  </div>
-  <button class="btn-success" onclick="confirmIssue()">Выдать товар</button>
-  <button class="btn-danger" onclick="markAsDefect()">Брак</button>
 </div>
 
 <script>
-  // === Инициализация Firebase ===
   const firebaseConfig = {
     databaseURL: "https://renessans-bank-3df94-default-rtdb.europe-west1.firebasedatabase.app/"
   };
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
-
   const CASHIER_PASSWORD = "0506";
   let currentOrderKey = null;
-  let currentOrder = null;
 
-  // === Вход ===
   function login() {
     if (document.getElementById("password").value === CASHIER_PASSWORD) {
       document.getElementById("login").style.display = "none";
       document.getElementById("main").style.display = "flex";
-      loadReviews(); // Подгружаем отзывы сразу
+      document.getElementById("scan-input").focus();
     } else {
-      alert("Неверный пароль! Попробуйте снова.");
+      alert("Неверный пароль!");
     }
   }
 
   function logout() {
+    currentOrderKey = null;
     document.getElementById("main").style.display = "none";
-    document.getElementById("new-orders").style.display = "none";
-    document.getElementById("receive").style.display = "none";
-    document.getElementById("reviews").style.display = "none";
-    document.getElementById("issue").style.display = "none";
     document.getElementById("login").style.display = "flex";
     document.getElementById("password").value = "";
+    resetUI();
   }
 
-  function backToMain() {
-    document.getElementById("new-orders").style.display = "none";
-    document.getElementById("receive").style.display = "none";
-    document.getElementById("reviews").style.display = "none";
-    document.getElementById("issue").style.display = "none";
-    document.getElementById("main").style.display = "flex";
-  }
-
-  function backToNewOrders() {
-    document.getElementById("receive").style.display = "none";
-    document.getElementById("new-orders").style.display = "flex";
-    loadNewOrders();
-  }
-
-  // === Новые заказы ===
-  function showNewOrders() {
-    document.getElementById("main").style.display = "none";
-    document.getElementById("new-orders").style.display = "flex";
-    loadNewOrders();
-  }
-
-  function loadNewOrders() {
-    const list = document.getElementById("new-orders-list");
-    list.innerHTML = "<p>Загрузка новых заказов...</p>";
-
-    db.ref('orders')
-      .orderByChild('status')
-      .equalTo('created')
-      .once('value')
-      .then(snapshot => {
-        list.innerHTML = "";
-        if (!snapshot.exists()) {
-          list.innerHTML = "<p>Новых заказов нет.</p>";
-          return;
-        }
-
-        snapshot.forEach(child => {
-          const order = child.val();
-          const div = document.createElement("div");
-          div.className = "order-card";
-          div.innerHTML = `
-            <h3>Заказ №${child.key.slice(-6)}</h3>
-            <p><strong>Клиент:</strong> ${order.userId}</p>
-            <p><strong>Сумма:</strong> ${order.total} ₽</p>
-            <p><strong>Оплата:</strong> ${order.paymentMethod === 'cash' ? 'При получении' : 'Онлайн'}</p>
-            <p><strong>Товаров:</strong> ${order.items.length}</p>
-            <button class="btn-success" onclick="prepareReceive('${child.key}', ${JSON.stringify(order).replace(/'/g, "\\'")})">Принять заказ</button>
-          `;
-          list.appendChild(div);
-        });
-      });
-  }
-
-  // === Приём заказа ===
-  function prepareReceive(orderKey, order) {
-    currentOrderKey = orderKey;
-    currentOrder = order;
-    document.getElementById("new-orders").style.display = "none";
-    document.getElementById("receive").style.display = "flex";
-
-    const details = document.getElementById("order-details");
-    details.innerHTML = `
-      <h3>Заказ №${orderKey.slice(-6)}</h3>
-      <p><strong>Клиент:</strong> ${order.userId}</p>
-      <p><strong>Сумма:</strong> ${order.total} ₽</p>
-      <p><strong>Оплата:</strong> ${order.paymentMethod === 'cash' ? 'При получении' : 'Онлайн'}</p>
-      <h4>Товары:</h4>
-      <div id="item-previews">${order.items.map(item => `
-        <div class="item-preview">
-          <img class="item-image" src="https://via.placeholder.com/80" alt="${item.name}" />
-          <div class="item-details">
-            <strong>${item.name}</strong><br>
-            ${item.price} ₽
-          </div>
-        </div>
-      `).join('')}</div>
-    `;
-
-    // Генерация QR-кода
-    const qrData = JSON.stringify({
-      orderId: orderKey,
-      pvz: "PVZ_BALASHIHA_32D",
-      timestamp: Date.now()
-    });
-
-    document.getElementById("qr-code").innerHTML = "";
-    new QRCode(document.getElementById("qr-code"), {
-      text: qrData,
-      width: 180,
-      height: 180
-    });
-
-    // Генерация штрихкода (EAN-13 имитация)
-    const now = Date.now().toString().slice(-9);
-    const nameHash = order.items[0].name.split('').reduce((a, b) => ((a << 5) - a + b.charCodeAt(0)) | 0, 0).toString().replace('-', '').slice(0,3);
-    let code12 = (now + nameHash).padEnd(12, '0').slice(0,12);
-    let sum = 0;
-    for (let i = 0; i < 12; i++) {
-      sum += parseInt(code12[i]) * (i % 2 === 0 ? 1 : 3);
-    }
-    const check = (10 - (sum % 10)) % 10;
-    const barcode = code12 + check;
-    document.getElementById("barcode-number").textContent = barcode;
-    document.getElementById("qr-numbers").textContent = barcode;
-    document.getElementById("qr-container").style.display = "block";
-  }
-
-  function confirmReceive() {
-    const location = document.getElementById("location-input").value.trim();
-    if (!location) {
-      alert("Пожалуйста, укажите место хранения!");
-      return;
-    }
-
-    db.ref('orders/' + currentOrderKey).update({
-      status: "received",
-      location: location,
-      receivedAt: firebase.database.ServerValue.TIMESTAMP
-    }).then(() => {
-      // Голосовое уведомление
-      if ('speechSynthesis' in window) {
-        const msg = `Заказ готов к выдаче. Место хранения: ${location}.`;
-        const utterance = new SpeechSynthesisUtterance(msg);
-        utterance.lang = 'ru-RU';
-        speechSynthesis.speak(utterance);
-      }
-
-      alert("Заказ успешно принят! Клиент получит уведомление.");
-      document.getElementById("receive").style.display = "none";
-      showNewOrders();
-    }).catch(err => {
-      alert("Ошибка при приёме заказа: " + err.message);
-    });
-  }
-
-  function markAsDefect() {
-    db.ref('orders/' + currentOrderKey).update({
-      status: "defect",
-      defectAt: firebase.database.ServerValue.TIMESTAMP
-    }).then(() => {
-      alert("Товар помечен как бракованный.");
-      document.getElementById("receive").style.display = "none";
-      showNewOrders();
-    });
-  }
-
-  // === Отзывы ===
-  function showReviews() {
-    document.getElementById("main").style.display = "none";
-    document.getElementById("reviews").style.display = "flex";
-    loadReviews();
-  }
-
-  function loadReviews() {
-    const list = document.getElementById("reviews-list");
-    list.innerHTML = "<p>Загрузка отзывов...</p>";
-
-    // Имитация отзывов
-    db.ref('orders')
-      .orderByChild('status')
-      .equalTo('issued')
-      .limitToLast(10)
-      .once('value')
-      .then(snapshot => {
-        list.innerHTML = "";
-        if (!snapshot.exists()) {
-          list.innerHTML = "<p>Отзывов пока нет.</p>";
-          return;
-        }
-
-        let count = 0;
-        snapshot.forEach(child => {
-          if (count >= 5) return;
-          const order = child.val();
-          const div = document.createElement("div");
-          div.className = "review-card";
-          const rating = Math.floor(Math.random() * 2) + 4; // 4 или 5
-          const comments = [
-            "Отличный сервис!",
-            "Быстро и удобно!",
-            "Спасибо за оперативность!",
-            "Всё понравилось!",
-            "Рекомендую этот ПВЗ!"
-          ];
-          const comment = comments[Math.floor(Math.random() * comments.length)];
-
-          div.innerHTML = `
-            <div class="rating">{"★".repeat(rating)}{"☆".repeat(5 - rating)}</div>
-            <p>${comment}</p>
-            <p><strong>Клиент:</strong> ${order.userId}</p>
-            <p><strong>Дата:</strong> ${new Date(order.issuedAt).toLocaleDateString()}</p>
-          `;
-          list.appendChild(div);
-          count++;
-        });
-      });
-  }
-
-  // === Выдача товара ===
-  function showIssue() {
-    document.getElementById("main").style.display = "none";
-    document.getElementById("issue").style.display = "flex";
-    document.getElementById("scan-input").focus();
+  function resetUI() {
+    document.getElementById("order-info").style.display = "none";
+    document.getElementById("action-buttons").style.display = "none";
+    document.getElementById("scan-input").value = "";
   }
 
   function handleScan() {
-    const scanInput = document.getElementById("scan-input");
-    const value = scanInput.value.trim();
+    const input = document.getElementById("scan-input");
+    let value = input.value.trim();
+
+    // Ждём полный ввод (обычно сканер отправляет Enter, но на всякий — проверим длину)
     if (value.length < 10) return;
 
     try {
+      // Попытка распарсить как JSON (QR от клиента)
       const data = JSON.parse(value);
-      if (data.orderId) {
-        currentOrderKey = data.orderId;
-        db.ref('orders/' + currentOrderKey).once('value').then(snapshot => {
-          const order = snapshot.val();
-          if (!order) {
-            alert("Заказ не найден!");
-            scanInput.value = "";
-            return;
-          }
-          if (order.status !== 'received') {
-            alert("Заказ ещё не принят!");
-            scanInput.value = "";
-            return;
-          }
-
-          document.getElementById("issue-details").innerHTML = `
-            <h3>Заказ №${currentOrderKey.slice(-6)}</h3>
-            <p>Товар: <strong>${order.items[0].name}</strong></p>
-            <p>Место: <strong>${order.location}</strong></p>
-            <p>Оплата: <strong>${order.paymentMethod === 'cash' ? 'При получении' : 'Онлайн'}</strong></p>
-          `;
-          scanInput.value = "";
-        });
+      if (data.orderId && data.userId) {
+        loadOrder(data.orderId);
+        input.value = "";
+        return;
       }
     } catch (e) {
-      // Не JSON — возможно, это просто ID
-      db.ref('orders/' + value).once('value').then(snapshot => {
-        const order = snapshot.val();
-        if (!order) {
-          alert("Заказ не найден!");
-          scanInput.value = "";
-          return;
-        }
-        if (order.status !== 'received') {
-          alert("Заказ ещё не принят!");
-          scanInput.value = "";
-          return;
-        }
-
-        currentOrderKey = value;
-        document.getElementById("issue-details").innerHTML = `
-          <h3>Заказ №${value.slice(-6)}</h3>
-          <p>Товар: <strong>${order.items[0].name}</strong></p>
-          <p>Место: <strong>${order.location}</strong></p>
-          <p>Оплата: <strong>${order.paymentMethod === 'cash' ? 'При получении' : 'Онлайн'}</strong></p>
-        `;
-        scanInput.value = "";
-      });
+      // Если не JSON — возможно, это просто ID заказа (на случай ручного ввода)
+      if (/^[A-Za-z0-9_-]{20,}$/.test(value)) {
+        loadOrder(value);
+        input.value = "";
+        return;
+      }
     }
+
+    // Если ничего не подошло — сброс
+    setTimeout(() => {
+      if (input.value === value) {
+        input.value = "";
+      }
+    }, 100);
+  }
+
+  function loadOrder(orderId) {
+    db.ref('orders/' + orderId).once('value').then(snapshot => {
+      const order = snapshot.val();
+      if (!order) {
+        alert("❌ Заказ не найден!");
+        resetUI();
+        return;
+      }
+
+      if (order.status !== 'received') {
+        alert("⚠️ Заказ ещё не готов к выдаче!");
+        resetUI();
+        return;
+      }
+
+      currentOrderKey = orderId;
+      const info = document.getElementById("order-info");
+      info.innerHTML = `
+        <h3>Заказ №${orderId.slice(-6)}</h3>
+        <p><strong>Клиент:</strong> ${order.userId}</p>
+        <p><strong>Товар:</strong> ${order.items[0].name}</p>
+        <p><strong>Сумма:</strong> ${order.total} ₽</p>
+        <p><strong>Оплата:</strong> ${order.paymentMethod === 'cash' ? 'При получении' : 'Онлайн'}</p>
+        <p><strong>Место хранения:</strong> ${order.location || 'Не указано'}</p>
+        <p><strong>Статус:</strong> Готов к выдаче</p>
+      `;
+      info.style.display = "block";
+      document.getElementById("action-buttons").style.display = "block";
+    });
   }
 
   function confirmIssue() {
-    if (!currentOrderKey) {
-      alert("Не выбран заказ!");
-      return;
-    }
-
+    if (!currentOrderKey) return;
     db.ref('orders/' + currentOrderKey).update({
       status: "issued",
       issuedAt: firebase.database.ServerValue.TIMESTAMP
     }).then(() => {
-      // Голосовое сообщение
-      const synth = window.speechSynthesis;
-      const utterance = new SpeechSynthesisUtterance(`Заказ номер ${currentOrderKey} выдан клиенту. Оплата ${currentOrder.paymentMethod}. Пожалуйста, проверьте товар под камерами.`);
-      utterance.lang = 'ru-RU';
-      synth.speak(utterance);
-
-      alert("Товар выдан!");
-      document.getElementById("issue").style.display = "none";
-      backToMain();
+      if ('speechSynthesis' in window) {
+        const msg = `Заказ выдан. Оплата ${currentOrderKey}. Пожалуйста, проверьте товар под камерами.`;
+        const utterance = new SpeechSynthesisUtterance(msg);
+        utterance.lang = 'ru-RU';
+        speechSynthesis.speak(utterance);
+      }
+      alert("✅ Товар успешно выдан!");
+      resetUI();
     });
   }
 
   function markAsDefect() {
-    if (!currentOrderKey) {
-      alert("Не выбран заказ!");
-      return;
-    }
-
+    if (!currentOrderKey) return;
+    if (!confirm("Вы уверены, что товар бракованный?")) return;
     db.ref('orders/' + currentOrderKey).update({
       status: "defect",
       defectAt: firebase.database.ServerValue.TIMESTAMP
     }).then(() => {
-      alert("Товар помечен как бракованный.");
-      document.getElementById("issue").style.display = "none";
-      backToMain();
+      alert("⚠️ Товар помечен как брак!");
+      resetUI();
     });
   }
 
-  // === Инициализация ===
-  document.getElementById("login").style.display = "flex";
+  // Фокус на поле ввода при загрузке
+  window.onload = () => {
+    document.getElementById("login").style.display = "flex";
+  };
 </script>
 
 </body>
