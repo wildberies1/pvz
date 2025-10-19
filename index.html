@@ -121,6 +121,9 @@
     <button onclick="backToMain()">← Назад</button>
   </div>
   <div id="issue-details"></div>
+  <div id="scan-input" style="margin: 20px 0;">
+    <input type="text" id="scan-input" placeholder="Сканируйте QR-код" oninput="handleScan()" style="width: 100%; padding: 12px; font-size: 16px;" />
+  </div>
   <button class="btn-success" onclick="confirmIssue()">Выдать товар</button>
   <button class="btn-danger" onclick="markAsDefect()">Брак</button>
 </div>
@@ -357,23 +360,76 @@
   }
 
   // === Выдача товара ===
-  function issueProduct(orderId) {
-    db.ref('orders/' + orderId).once('value').then(snapshot => {
-      const order = snapshot.val();
-      if (!order) return;
-      currentOrder = order;
-      document.getElementById("main").style.display = "none";
-      document.getElementById("issue").style.display = "flex";
-      document.getElementById("issue-details").innerHTML = `
-        <h3>Заказ №${orderId}</h3>
-        <p>Товар: <strong>${order.items[0].name}</strong></p>
-        <p>Место: <strong>${order.location}</strong></p>
-        <p>Оплата: <strong>${order.paymentMethod === 'cash' ? 'При получении' : 'Онлайн'}</strong></p>
-      `;
-    });
+  function showIssue() {
+    document.getElementById("main").style.display = "none";
+    document.getElementById("issue").style.display = "flex";
+    document.getElementById("scan-input").focus();
+  }
+
+  function handleScan() {
+    const scanInput = document.getElementById("scan-input");
+    const value = scanInput.value.trim();
+    if (value.length < 10) return;
+
+    try {
+      const data = JSON.parse(value);
+      if (data.orderId) {
+        currentOrderKey = data.orderId;
+        db.ref('orders/' + currentOrderKey).once('value').then(snapshot => {
+          const order = snapshot.val();
+          if (!order) {
+            alert("Заказ не найден!");
+            scanInput.value = "";
+            return;
+          }
+          if (order.status !== 'received') {
+            alert("Заказ ещё не принят!");
+            scanInput.value = "";
+            return;
+          }
+
+          document.getElementById("issue-details").innerHTML = `
+            <h3>Заказ №${currentOrderKey.slice(-6)}</h3>
+            <p>Товар: <strong>${order.items[0].name}</strong></p>
+            <p>Место: <strong>${order.location}</strong></p>
+            <p>Оплата: <strong>${order.paymentMethod === 'cash' ? 'При получении' : 'Онлайн'}</strong></p>
+          `;
+          scanInput.value = "";
+        });
+      }
+    } catch (e) {
+      // Не JSON — возможно, это просто ID
+      db.ref('orders/' + value).once('value').then(snapshot => {
+        const order = snapshot.val();
+        if (!order) {
+          alert("Заказ не найден!");
+          scanInput.value = "";
+          return;
+        }
+        if (order.status !== 'received') {
+          alert("Заказ ещё не принят!");
+          scanInput.value = "";
+          return;
+        }
+
+        currentOrderKey = value;
+        document.getElementById("issue-details").innerHTML = `
+          <h3>Заказ №${value.slice(-6)}</h3>
+          <p>Товар: <strong>${order.items[0].name}</strong></p>
+          <p>Место: <strong>${order.location}</strong></p>
+          <p>Оплата: <strong>${order.paymentMethod === 'cash' ? 'При получении' : 'Онлайн'}</strong></p>
+        `;
+        scanInput.value = "";
+      });
+    }
   }
 
   function confirmIssue() {
+    if (!currentOrderKey) {
+      alert("Не выбран заказ!");
+      return;
+    }
+
     db.ref('orders/' + currentOrderKey).update({
       status: "issued",
       issuedAt: firebase.database.ServerValue.TIMESTAMP
@@ -385,6 +441,22 @@
       synth.speak(utterance);
 
       alert("Товар выдан!");
+      document.getElementById("issue").style.display = "none";
+      backToMain();
+    });
+  }
+
+  function markAsDefect() {
+    if (!currentOrderKey) {
+      alert("Не выбран заказ!");
+      return;
+    }
+
+    db.ref('orders/' + currentOrderKey).update({
+      status: "defect",
+      defectAt: firebase.database.ServerValue.TIMESTAMP
+    }).then(() => {
+      alert("Товар помечен как бракованный.");
       document.getElementById("issue").style.display = "none";
       backToMain();
     });
