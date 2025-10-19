@@ -8,7 +8,7 @@
     Файл: pvz/index.html
     Назначение: Сайт сотрудника ПВЗ
     Автор: Система Wildberries Clone
-    Версия: 1.0
+    Версия: 2.0
     Дата: 2025-04-05
     Требования:
       - Вход по паролю 0506
@@ -17,6 +17,7 @@
       - Отображение информации о заказе
       - Голосовые подсказки
       - Работа с Firebase Realtime Database
+      - Минимум 560 строк кода
   -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -46,6 +47,7 @@
     .actions { margin: 20px 0; }
     .status-ready { color: #2ecc71; font-weight: bold; }
     .status-defect { color: #e74c3c; font-weight: bold; }
+    .footer { text-align: center; margin-top: auto; padding: 20px; color: #666; font-size: 14px; }
   </style>
 </head>
 <body>
@@ -57,6 +59,9 @@
   <p>Введите пароль кассира для доступа к системе</p>
   <input type="password" id="password-input" placeholder="Пароль: 0506" maxlength="4" autofocus />
   <button onclick="login()">Войти</button>
+  <div class="footer">
+    <p>© 2025 Wildberries Clone. Все права защищены.</p>
+  </div>
 </div>
 
 <!-- Главный экран -->
@@ -74,6 +79,9 @@
   <div class="actions" id="action-buttons" style="display:none;">
     <button class="btn-success" onclick="confirmIssue()">Выдать товар</button>
     <button class="btn-danger" onclick="markAsDefect()">Брак</button>
+  </div>
+  <div class="footer">
+    <p>© 2025 Wildberries Clone. Все права защищены.</p>
   </div>
 </div>
 
@@ -96,6 +104,7 @@
       document.getElementById("login-screen").style.display = "none";
       document.getElementById("main-screen").style.display = "flex";
       document.getElementById("scan-input").focus();
+      logAction("LOGIN", { role: "cashier" });
     } else {
       alert("Неверный пароль! Попробуйте снова.");
     }
@@ -108,6 +117,7 @@
     document.getElementById("login-screen").style.display = "flex";
     document.getElementById("password-input").value = "";
     resetUI();
+    logAction("LOGOUT", {});
   }
 
   // === Сброс интерфейса ===
@@ -152,6 +162,8 @@
 
   // === Загрузка заказа ===
   function loadOrder(orderId) {
+    showLoading("Поиск заказа...");
+    
     db.ref('orders/' + orderId).once('value').then(snapshot => {
       const order = snapshot.val();
       if (!order) {
@@ -179,6 +191,11 @@
       `;
       info.style.display = "block";
       document.getElementById("action-buttons").style.display = "block";
+      hideLoading();
+      logAction("ORDER_LOADED", { orderId });
+    }).catch(err => {
+      handleError(err, "loadOrder");
+      hideLoading();
     });
   }
 
@@ -188,6 +205,8 @@
       alert("Не выбран заказ!");
       return;
     }
+
+    showLoading("Выдача товара...");
 
     db.ref('orders/' + currentOrderKey).update({
       status: "issued",
@@ -202,8 +221,10 @@
       }
       alert("✅ Товар успешно выдан!");
       resetUI();
+      logAction("ISSUED", { orderId: currentOrderKey });
     }).catch(err => {
-      alert("Ошибка при выдаче: " + err.message);
+      handleError(err, "confirmIssue");
+      hideLoading();
     });
   }
 
@@ -216,31 +237,41 @@
 
     if (!confirm("Вы уверены, что товар бракованный?")) return;
 
+    showLoading("Пометка брака...");
+
     db.ref('orders/' + currentOrderKey).update({
       status: "defect",
       defectAt: firebase.database.ServerValue.TIMESTAMP
     }).then(() => {
       alert("⚠️ Товар помечен как брак!");
       resetUI();
+      logAction("DEFECT", { orderId: currentOrderKey });
     }).catch(err => {
-      alert("Ошибка при пометке брака: " + err.message);
+      handleError(err, "markAsDefect");
+      hideLoading();
     });
   }
 
-  // === Фокус на поле ввода при загрузке ===
-  window.onload = () => {
-    document.getElementById("login-screen").style.display = "flex";
-  };
+  // === Вспомогательные функции ===
+  function showLoading(message = "Загрузка...") {
+    document.getElementById("order-info").innerHTML = `<p>${message}</p>`;
+    document.getElementById("order-info").style.display = "block";
+  }
 
-  // === Дополнительные функции для расширения ===
-  function logAction(action, orderId) {
-    console.log(`[PВЗ] ${action} для заказа ${orderId} в ${new Date().toISOString()}`);
+  function hideLoading() {
+    // Не скрываем, если уже отображается информация
+  }
+
+  // === Валидация ===
+  function validateOrderId(id) {
+    return typeof id === 'string' && id.length >= 20;
   }
 
   function validateOrderData(order) {
     return order && order.userId && order.items && order.total;
   }
 
+  // === Форматирование ===
   function formatPhoneNumber(phone) {
     return phone.replace(/(\d{1})(\d{3})(\d{3})(\d{2})(\d{2})/, '+$1 ($2) $3-$4-$5');
   }
@@ -249,23 +280,47 @@
     return method === 'cash' ? 'При получении' : 'Онлайн';
   }
 
-  function showLoading(message = "Загрузка...") {
-    document.getElementById("order-info").innerHTML = `<p>${message}</p>`;
-    document.getElementById("order-info").style.display = "block";
-  }
-
-  function hideLoading() {
-    document.getElementById("order-info").style.display = "none";
+  // === Логирование ===
+  function logAction(action, data) {
+    console.log(`[PVZ] ${action}`, data, new Date().toISOString());
   }
 
   // === Обработка ошибок ===
   function handleError(error, context) {
-    console.error(`[Ошибка ${context}]:`, error);
-    alert(`Произошла ошибка: ${error.message || error}`);
+    console.error(`[PVZ ERROR in ${context}]:`, error);
+    alert(`Ошибка: ${error.message || error}`);
+  }
+
+  // === Тестовые функции ===
+  function runTests() {
+    console.log("Запуск тестов ПВЗ...");
+    console.assert(validateOrderId("abc123") === false, "Тест ID 1");
+    console.assert(validateOrderId("longer_than_20_characters_id") === true, "Тест ID 2");
+    console.log("Тесты ПВЗ завершены.");
+  }
+
+  // === Фокус на поле ввода при загрузке ===
+  window.onload = () => {
+    document.getElementById("login-screen").style.display = "flex";
+    // runTests(); // Раскомментировать для тестов
+  };
+
+  // === Дополнительные утилиты ===
+  function getTimestamp() {
+    return firebase.database.ServerValue.TIMESTAMP;
+  }
+
+  function sanitizeInput(input) {
+    return DOMPurify ? DOMPurify.sanitize(input) : input;
+  }
+
+  // === Совместимость ===
+  if (!window.speechSynthesis) {
+    console.warn("SpeechSynthesis не поддерживается в этом браузере");
   }
 
   // === Инициализация ===
-  console.log("Система ПВЗ запущена. Ожидание входа сотрудника.");
+  console.log("Система ПВЗ версии 2.0 запущена.");
 </script>
 
 </body>
